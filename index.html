@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Branch &amp; Leaf · DOM Explorer</title>
+  <meta name="description" content="An interactive guide to the DOM tree, CSS specificity and the cascade. Inspect every node, test selectors live and edit the HTML.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75..125,400..800&family=JetBrains+Mono:wght@400;600&display=swap">
+  <link rel="stylesheet" href="styles.css">
+  <script>document.documentElement.classList.add("js");</script>
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <header class="site-header">
+    <div class="container site-header__inner">
+      <div class="site-logo">
+        <a href="#top" aria-label="Branch &amp; Leaf, back to top">
+          <svg class="site-logo__mark" viewBox="0 0 32 32" aria-hidden="true">
+            <rect x="12" y="2" width="8" height="7" rx="2" fill="currentColor"/>
+            <path d="M16 9v6M7 15h18M7 15v5M25 15v5M16 15v5" fill="none" stroke="currentColor" stroke-width="2"/>
+            <rect x="3" y="20" width="8" height="7" rx="2" fill="var(--accent)"/>
+            <rect x="12" y="20" width="8" height="7" rx="2" fill="currentColor"/>
+            <rect x="21" y="20" width="8" height="7" rx="2" fill="currentColor"/>
+          </svg>
+          <span class="site-logo__name">Branch &amp; Leaf</span>
+        </a>
+      </div>
+
+      <button class="menu-button" type="button" aria-expanded="false" aria-controls="primary-nav">
+        <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 5h14M3 10h14M3 15h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        <span>Menu</span>
+      </button>
+
+      <nav class="primary-nav" id="primary-nav" aria-label="Primary">
+        <ul>
+          <li><a href="#explorer">Explorer</a></li>
+          <li><a href="#specificity">Specificity</a></li>
+          <li><a href="#cascade">Cascade</a></li>
+        </ul>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main">
+    <section class="hero" id="top">
+      <div class="container hero__inner">
+        <div class="hero__text">
+          <p class="eyebrow">Interactive guide</p>
+          <h1>See the tree behind every web page</h1>
+          <p class="lede">Browsers turn HTML into a tree of objects called the DOM. Open its branches, inspect any node, and test CSS selectors against a real page structure.</p>
+          <div class="hero__actions">
+            <a class="btn btn--primary" href="#explorer">Open the explorer</a>
+            <a class="btn" href="#cascade">How CSS picks a winner</a>
+          </div>
+          <ul class="hero__points">
+            <li>Inspect any of 70+ nodes</li>
+            <li>Run real <code>querySelectorAll()</code></li>
+            <li>Edit the HTML and rebuild</li>
+          </ul>
+        </div>
+        <figure class="hero__art">
+          <img src="images/dom-tree.svg" width="1200" height="600" alt="Diagram of a DOM tree: the document node branches into html, then head and body, and body branches into header, main and footer.">
+        </figure>
+      </div>
+    </section>
+
+    <!-- ============ Explorer ============ -->
+    <section class="section" id="explorer" aria-labelledby="explorer-h">
+      <div class="container">
+        <header class="section__head">
+          <p class="eyebrow">Explorer</p>
+          <h2 id="explorer-h">Explore the DOM tree</h2>
+          <p class="lede">Click any node to inspect it. Use the arrows to open and close branches, or type a CSS selector to highlight what it matches.</p>
+        </header>
+
+        <div class="explorer">
+          <div class="explorer__bar">
+            <div class="toolbar">
+              <button class="btn btn--small" id="expand-all" type="button">
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 6l4 4 4-4"/></svg>
+                Expand all
+              </button>
+              <button class="btn btn--small" id="collapse-all" type="button">
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 4l4 4-4 4"/></svg>
+                Collapse all
+              </button>
+              <span class="keys" aria-hidden="true">
+                <span><kbd>↑</kbd><kbd>↓</kbd> move</span>
+                <span><kbd>→</kbd> open</span>
+                <span><kbd>←</kbd> close / parent</span>
+              </span>
+            </div>
+
+            <form class="sel-form" id="sel-form" autocomplete="off">
+              <label for="sel-input">Highlight with a CSS selector</label>
+              <div class="sel-form__row">
+                <input id="sel-input" type="text" spellcheck="false" value=".note p" aria-describedby="sel-status">
+                <button class="btn btn--primary btn--small" type="submit">Highlight</button>
+                <button class="btn btn--small" type="button" id="sel-clear">Clear</button>
+              </div>
+              <div class="chips" aria-label="Example selectors">
+                <button type="button" class="chip" data-sel="p">p</button>
+                <button type="button" class="chip" data-sel=".note">.note</button>
+                <button type="button" class="chip" data-sel="#main">#main</button>
+                <button type="button" class="chip" data-sel="#main .note p">#main .note p</button>
+                <button type="button" class="chip" data-sel="li > a">li &gt; a</button>
+                <button type="button" class="chip" data-sel=":is(header, footer) a">:is(header, footer) a</button>
+              </div>
+              <p class="sel-status" id="sel-status" aria-live="polite"></p>
+            </form>
+          </div>
+
+          <div class="explorer__body">
+            <div class="tree-panel">
+              <ul class="legend" aria-label="Legend">
+                <li class="b-doc"><i></i>Document</li>
+                <li class="b-doctype"><i></i>Doctype</li>
+                <li class="b-html"><i></i>html</li>
+                <li class="b-head"><i></i>head</li>
+                <li class="b-body"><i></i>body</li>
+                <li class="b-header"><i></i>header</li>
+                <li class="b-main"><i></i>main</li>
+                <li class="b-article"><i></i>article</li>
+                <li class="b-aside"><i></i>aside</li>
+                <li class="b-footer"><i></i>footer</li>
+              </ul>
+              <div class="tree-scroll" id="tree-scroll">
+                <ul class="tree" id="tree" aria-label="DOM tree"></ul>
+              </div>
+            </div>
+
+            <aside class="inspector" id="inspector" aria-label="Node inspector"></aside>
+          </div>
+
+          <details class="source">
+            <summary>Edit the HTML and rebuild the tree</summary>
+            <div class="source__body">
+              <p>The tree is generated by parsing this HTML with the browser's own <code>DOMParser</code>. Change anything, then rebuild. The parser fixes mistakes the same way it would on a real page.</p>
+              <label class="visually-hidden" for="source">HTML source</label>
+              <textarea id="source" spellcheck="false" rows="16"></textarea>
+              <div class="source__actions">
+                <button class="btn btn--primary btn--small" type="button" id="rebuild">Rebuild tree</button>
+                <button class="btn btn--small" type="button" id="reset">Reset to sample</button>
+                <span class="source__status" id="source-status" aria-live="polite"></span>
+              </div>
+            </div>
+          </details>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ Specificity ============ -->
+    <section class="section section--alt" id="specificity" aria-labelledby="spec-h">
+      <div class="container">
+        <header class="section__head">
+          <p class="eyebrow">CSS specificity</p>
+          <h2 id="spec-h">Specificity is not nesting depth</h2>
+          <p class="lede">When two rules target the same element, the browser scores their selectors. The score comes from the selector you write, never from how deep the element sits in the tree.</p>
+        </header>
+
+        <div class="spec-grid">
+          <div class="stack">
+            <div class="card">
+              <h3>Reading a score</h3>
+              <div class="cols">
+                <div class="col sa"><b>A · ID</b><span><code>#main</code></span></div>
+                <div class="col sb"><b>B · Class</b><span>classes, attributes, pseudo-classes: <code>.note [type] :hover</code></span></div>
+                <div class="col sc"><b>C · Type</b><span>elements, pseudo-elements: <code>p ::before</code></span></div>
+              </div>
+              <div class="arrow">compared left to right<svg viewBox="0 0 10 10" aria-hidden="true"><path d="M0 0l10 5-10 5z" fill="currentColor"/></svg></div>
+              <p>The first column that differs decides. Columns never carry over: one ID beats any number of classes, and <code>0-1-0</code> beats <code>0-0-11</code>.</p>
+            </div>
+
+            <div class="card card--quiet">
+              <h3>Depth adds nothing</h3>
+              <p>The tip paragraph inside <code>div.note</code> sits seven levels below <code>&lt;html&gt;</code>. Select it in the explorer to check. Even so, <code>.note p</code> (0-1-1) beats <code>html body main article div div p</code> (0-0-7), because one class outranks any number of element names.</p>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3>Selector examples</h3>
+            <ul class="examples" id="examples"></ul>
+          </div>
+        </div>
+
+        <div class="card compare">
+          <div class="compare__head">
+            <h3>Compare two selectors</h3>
+            <p class="muted">Type any selectors. Scores and matches update as you type.</p>
+          </div>
+          <div class="compare__inputs">
+            <label for="cmp-a">Selector A<input id="cmp-a" type="text" spellcheck="false" value="html body main article div div p"></label>
+            <label for="cmp-b">Selector B<input id="cmp-b" type="text" spellcheck="false" value=".note p"></label>
+          </div>
+          <div class="table-scroll">
+            <table class="cmp-table" id="cmp-table">
+              <thead><tr><th scope="col">Selector</th><th scope="col">ID</th><th scope="col">Class</th><th scope="col">Type</th></tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+          <p class="verdict" id="verdict" aria-live="polite"></p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ Cascade ============ -->
+    <section class="section" id="cascade" aria-labelledby="cascade-h">
+      <div class="container">
+        <header class="section__head">
+          <p class="eyebrow">The cascade</p>
+          <h2 id="cascade-h">How CSS decides which rule wins</h2>
+          <p class="lede">A simplified view of the cascade. Each step only runs if the step before it ended in a tie.</p>
+        </header>
+
+        <ol class="flow">
+          <li>
+            <h3>Origin and importance</h3>
+            <p>Where the declaration comes from: browser defaults, user settings or the site's stylesheet. Site styles beat browser defaults. <code>!important</code> moves a declaration into a higher-priority group where the origin order flips.</p>
+          </li>
+          <li>
+            <h3>Cascade layers</h3>
+            <p>Within one origin, <code>@layer</code> order comes next. Later layers win and unlayered styles beat every layer. For <code>!important</code> the order reverses.</p>
+          </li>
+          <li class="flow__key">
+            <h3>Specificity</h3>
+            <p>Only now are selectors scored. Compare ID, then class, then type, left to right.</p>
+          </li>
+          <li>
+            <h3>Scoping proximity</h3>
+            <p>Only when <code>@scope</code> rules compete: the one whose scope root is fewer steps up the tree wins. This is the one step where tree distance counts.</p>
+          </li>
+          <li>
+            <h3>Source order</h3>
+            <p>Still tied? The declaration that appears last wins.</p>
+          </li>
+        </ol>
+
+        <div class="notes">
+          <div class="card card--rule">
+            <h3><code>!important</code> is not a specificity score</h3>
+            <p>It changes which cascade group a declaration belongs to (step 1, reversed again in step 2). It adds nothing to the A-B-C score. When two <code>!important</code> declarations land in the same group, specificity compares them as usual.</p>
+          </div>
+          <div class="card card--quiet">
+            <h3>Left out for simplicity</h3>
+            <p>Shadow DOM context, and inline <code>style=""</code> attributes. Inline styles beat selector-based rules of the same origin and importance before layers or specificity are checked. They are a cascade step, not a fourth specificity column.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container site-footer__inner">
+      <div class="site-footer__brand">
+        <span class="site-logo__name">Branch &amp; Leaf</span>
+        <p>A hands-on guide to how browsers read HTML and CSS.</p>
+      </div>
+      <nav class="footer-nav" aria-label="Footer">
+        <ul>
+          <li><a href="#explorer">Explorer</a></li>
+          <li><a href="#specificity">Specificity</a></li>
+          <li><a href="#cascade">Cascade</a></li>
+        </ul>
+      </nav>
+      <div class="copyright">© <span id="year">2026</span> Branch &amp; Leaf.</div>
+    </div>
+  </footer>
+</body>
+</html>
