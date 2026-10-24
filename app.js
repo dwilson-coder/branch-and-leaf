@@ -582,7 +582,9 @@
     matchIndex = -1;
   }
 
-  function runSelector() {
+  // quiet: mark matches without moving the selection, opening branches or scrolling (used on live rebuilds).
+  function runSelector(opts) {
+    const quiet = !!(opts && opts.quiet);
     const s = selInput.value.trim();
     clearMatches();
     selInput.removeAttribute("aria-invalid");
@@ -601,6 +603,7 @@
     matches = found.map(n => nodeMap.get(n)).filter(Boolean);
     matches.forEach(li => {
       li.classList.add("match");
+      if (quiet) return;
       for (let p = li.parentElement.closest(".node"); p; p = p.parentElement.closest(".node")) {
         if (p.classList.contains("major") && !isOpen(p)) setOpen(p, true);
       }
@@ -624,7 +627,7 @@
       });
       selStatus.appendChild(next);
     }
-    if (n) { matchIndex = 0; select(matches[0].domNode, { reveal: true }); }
+    if (n && !quiet) { matchIndex = 0; select(matches[0].domNode, { reveal: true }); }
   }
 
   selForm.addEventListener("submit", e => { e.preventDefault(); runSelector(); });
@@ -729,32 +732,90 @@
   const source = $("source");
   const sourceStatus = $("source-status");
 
-  function build(html) {
+  const stateKey = n => (n.nodeType === 9 ? "#document" : n.nodeType === 10 ? "#doctype" : cssPath(n));
+  function findByKey(key) {
+    if (key === "#document") return doc;
+    if (key === "#doctype") return doc.doctype;
+    try { return doc.querySelector(key); } catch (e) { return null; }
+  }
+
+  // preserve: keep open/closed branches, the selected node and the scroll position (live editing).
+  function build(html, opts) {
+    const preserve = !!(opts && opts.preserve) && doc;
+    let closedKeys = null, selKey = null, scroll = null;
+    if (preserve) {
+      closedKeys = new Set(majors.filter(li => !isOpen(li)).map(li => stateKey(li.domNode)));
+      selKey = selected ? stateKey(selected) : null;
+      scroll = { top: treeScroll.scrollTop, left: treeScroll.scrollLeft };
+    }
+
     doc = new DOMParser().parseFromString(html, "text/html");
     nodeMap = new Map();
     majors = [];
+    selected = null;
     tree.textContent = "";
     tree.appendChild(render(doc));
     majors.forEach(li => {
       const n = li.domNode;
-      if (n.nodeName === "HEAD" || isTopLevel(n)) setOpen(li, false);
+      const closed = closedKeys ? closedKeys.has(stateKey(n)) : (n.nodeName === "HEAD" || isTopLevel(n));
+      if (closed) setOpen(li, false);
     });
     const first = tree.querySelector(".pick");
     if (first) first.tabIndex = 0;
-    select(doc.querySelector(".note p") || doc.body || doc, { reveal: true });
-    if (selInput.value.trim()) runSelector();
+
+    const target = (selKey && findByKey(selKey)) || doc.querySelector(".note p") || doc.body || doc;
+    select(target, { reveal: !preserve });
+    if (selInput.value.trim()) runSelector({ quiet: preserve });
     compare();
+    if (scroll) { treeScroll.scrollTop = scroll.top; treeScroll.scrollLeft = scroll.left; }
   }
+
+  const elementCount = () => doc.querySelectorAll("*").length;
 
   source.value = SAMPLE;
   $("rebuild").addEventListener("click", () => {
-    build(source.value);
-    sourceStatus.textContent = `Rebuilt: ${doc.querySelectorAll("*").length} elements.`;
+    build(source.value, { preserve: true });
+    sourceStatus.textContent = `Rebuilt: ${elementCount()} elements.`;
   });
   $("reset").addEventListener("click", () => {
     source.value = SAMPLE;
     build(SAMPLE);
     sourceStatus.textContent = "Sample restored.";
+  });
+
+  const live = $("live");
+  let liveTimer = 0;
+  source.addEventListener("input", () => {
+    if (!live.checked) { sourceStatus.textContent = "Unsaved changes. Press Rebuild tree."; return; }
+    clearTimeout(liveTimer);
+    liveTimer = setTimeout(() => {
+      build(source.value, { preserve: true });
+      sourceStatus.textContent = `Updated: ${elementCount()} elements.`;
+    }, 350);
+  });
+
+  // Tab inserts two spaces instead of leaving the editor; Esc then Tab still moves focus on.
+  let escPressed = false;
+  source.addEventListener("keydown", e => {
+    if (e.key === "Escape") { escPressed = true; return; }
+    if (e.key === "Tab" && !e.shiftKey && !escPressed) {
+      e.preventDefault();
+      const { selectionStart: a, selectionEnd: b } = source;
+      source.setRangeText("  ", a, b, "end");
+      source.dispatchEvent(new Event("input"));
+    }
+    escPressed = false;
+  });
+
+  // On narrow screens the editor starts collapsed behind a toggle; at 1280px+ CSS always shows it.
+  const sourceToggle = $("source-toggle");
+  const sourceBody = $("source-body");
+  sourceToggle.addEventListener("click", () => {
+    const open = sourceToggle.getAttribute("aria-expanded") !== "true";
+    sourceToggle.setAttribute("aria-expanded", String(open));
+    sourceToggle.textContent = open ? "Hide editor" : "Show editor";
+    sourceBody.classList.toggle("is-collapsed", !open);
+    if (open) source.focus({ preventScroll: true });
   });
 
   build(SAMPLE);

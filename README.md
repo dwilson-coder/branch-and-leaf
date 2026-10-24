@@ -14,7 +14,7 @@ Built with plain HTML, CSS and JavaScript. No frameworks, no build step.
 - **Node inspector.** Select any node to see its type, depth, child count, attributes, text, a clickable path from the root and its children. Element descriptions explain what each tag is for.
 - **Generated selector.** The inspector builds a short, unique `document.querySelector()` call for the selected element, shows its specificity, and can copy it.
 - **Selector highlighter.** Type any CSS selector to highlight its matches in the tree. You get a match count, the selector's specificity and a "Next match" button. Invalid selectors get a clear error.
-- **Editable source.** Change the sample HTML and rebuild the tree. The browser's own parser handles mistakes exactly as it would on a real page.
+- **Live HTML editor.** Edit the sample HTML and the tree rebuilds as you type, keeping your open branches, selection and scroll position. Turn off "Update as I type" to rebuild manually. The browser's own parser handles mistakes exactly as it would on a real page.
 
 ### CSS specificity
 - How to read an A-B-C score (ID, class/attribute/pseudo-class, type/pseudo-element), compared left to right.
@@ -50,6 +50,7 @@ dom-tree/
 ├── index.html          Page markup: header, hero, explorer, specificity, cascade, footer
 ├── styles.css          Design tokens, light/dark themes, layout and components
 ├── app.js              Mobile menu, tree rendering, inspector, selector tools
+├── favicon.svg         Browser tab icon
 └── images/
     └── dom-tree.svg    Hero illustration
 ```
@@ -72,6 +73,7 @@ dom-tree/
 | <kbd>←</kbd> | Close a branch, or move to the parent |
 | <kbd>Home</kbd> / <kbd>End</kbd> | Jump to the first / last visible node |
 | <kbd>Esc</kbd> | Close the mobile menu |
+| <kbd>Tab</kbd> in the editor | Insert two spaces (press <kbd>Esc</kbd> first to move focus out) |
 
 - Status messages use `aria-live` regions.
 - All animation is disabled when the operating system's reduced-motion setting is on.
@@ -81,8 +83,9 @@ dom-tree/
 
 | Width | Layout |
 | --- | --- |
-| Above 1000px | Tree and inspector side by side; cascade steps in one row |
-| 1000px and below | Inspector moves below the tree; the tree panel scrolls on its own |
+| 1280px and above | HTML editor, tree and inspector side by side as three equal-height panels |
+| 1000px to 1279px | Tree and inspector side by side, editor below; cascade steps in one row |
+| Below 1000px | Tree, inspector and editor stacked; the editor opens with a "Show editor" button |
 | 760px and below | Navigation collapses behind a Menu button |
 | Phones | All sections stack to one column |
 
@@ -98,3 +101,7 @@ Light and dark themes follow the system setting.
 ## Browser support
 
 Current versions of Chrome, Edge, Firefox and Safari. The page relies on `color-mix()`, the `inert` attribute, `:scope` and `CSS.escape()`.
+
+## Credits
+
+Built by [CodeBox LLC](https://codeboxllc.net/).
