@@ -155,7 +155,9 @@
   let uid = 0;
 
   const isTopLevel = n => (n.nodeName === "HEADER" || n.nodeName === "FOOTER") && n.parentNode && n.parentNode.nodeName === "BODY";
-  const isMajor = n => n.nodeType === 9 || ["HTML", "HEAD", "BODY", "MAIN", "ARTICLE"].includes(n.nodeName) || isTopLevel(n);
+  const isMajor = n => n.nodeType === 9 || ["HTML", "HEAD", "BODY", "MAIN", "ARTICLE", "ASIDE"].includes(n.nodeName) || isTopLevel(n);
+  // The trunk stays open on a fresh build; every other branch starts folded so the map fits the panel.
+  const OPEN_BY_DEFAULT = ["#document", "HTML", "BODY"];
 
   function branchOf(n) {
     if (n.nodeType === 10) return "doctype";
@@ -298,8 +300,8 @@
       if (r.top < c.top + 8 || r.bottom > c.bottom - 8) {
         treeScroll.scrollTo({ top: treeScroll.scrollTop + (r.top - c.top) - c.height / 3, behavior: behavior() });
       }
-      if (r.left < c.left || r.left > c.right - 80) {
-        treeScroll.scrollTo({ left: treeScroll.scrollLeft + (r.left - c.left) - 24, behavior: behavior() });
+      if (r.left < c.left + 8 || r.right > c.right - 8) {
+        treeScroll.scrollTo({ left: treeScroll.scrollLeft + (r.left + r.width / 2) - (c.left + c.width / 2), behavior: behavior() });
       }
     };
     if (delay && !reduceMotion.matches) setTimeout(run, 330); else run();
@@ -456,16 +458,21 @@
     const li = b.closest(".node");
     const major = li.classList.contains("major");
     let target = null;
+    if (e.key === "+" || e.key === "=") { e.preventDefault(); setZoom(zoom * ZOOM_STEP); return; }
+    if (e.key === "-") { e.preventDefault(); setZoom(zoom / ZOOM_STEP); return; }
+    if (e.key === "0") { e.preventDefault(); fitZoom(); return; }
+    // Branches grow downward, so left/right move between siblings and down steps into children.
+    const sib = s => (s ? pickOf(s) : null);
     switch (e.key) {
-      case "ArrowDown": target = list[i + 1]; break;
-      case "ArrowUp": target = list[i - 1]; break;
+      case "ArrowRight": target = sib(li.nextElementSibling); break;
+      case "ArrowLeft": target = sib(li.previousElementSibling); break;
       case "Home": target = list[0]; break;
       case "End": target = list[list.length - 1]; break;
-      case "ArrowRight":
+      case "ArrowDown":
         if (major && !isOpen(li)) setOpen(li, true);
-        else if (major && list[i + 1] && li.contains(list[i + 1])) target = list[i + 1];
+        else if (list[i + 1] && li.contains(list[i + 1])) target = list[i + 1];
         break;
-      case "ArrowLeft":
+      case "ArrowUp":
         if (major && isOpen(li)) setOpen(li, false);
         else {
           const p = li.parentElement.closest(".node");
@@ -484,7 +491,127 @@
   $("expand-all").addEventListener("click", () => majors.forEach(li => setOpen(li, true)));
   $("collapse-all").addEventListener("click", () => {
     majors.forEach(li => setOpen(li, li === tree.firstElementChild));
-    treeScroll.scrollTo({ top: 0, left: 0 });
+    fitZoom();
+  });
+
+  /* ================= Zoom and pan ================= */
+  const ZOOM_MIN = 0.4, ZOOM_MAX = 2, ZOOM_STEP = 1.2, FIT_MIN = 0.55;
+  const zoomLevel = $("zoom-level");
+  let zoom = 1;
+
+  // at: a viewport point to keep still while zooming (defaults to the panel centre).
+  function setZoom(z, at) {
+    z = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Math.round(z * 100) / 100));
+    const c = treeScroll.getBoundingClientRect();
+    const px = at ? at.x - c.left : treeScroll.clientWidth / 2;
+    const py = at ? at.y - c.top : treeScroll.clientHeight / 2;
+    const x = (treeScroll.scrollLeft + px) / zoom, y = (treeScroll.scrollTop + py) / zoom;
+    zoom = z;
+    tree.style.zoom = z;
+    treeScroll.scrollLeft = x * z - px;
+    treeScroll.scrollTop = y * z - py;
+    const pct = Math.round(z * 100) + "%";
+    zoomLevel.textContent = pct;
+    zoomLevel.setAttribute("aria-label", `Zoom ${pct}. Reset to 100%`);
+    $("zoom-out").disabled = z <= ZOOM_MIN;
+    $("zoom-in").disabled = z >= ZOOM_MAX;
+  }
+
+  // Scale the open branches down to fit the panel, never above 100% or below a readable size.
+  function fitZoom() {
+    tree.style.zoom = 1;
+    const cs = getComputedStyle(treeScroll);
+    const padX = parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight);
+    const padY = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
+    const maxH = parseFloat(cs.maxHeight);
+    const w = treeScroll.clientWidth - padX;
+    const h = (isNaN(maxH) ? treeScroll.clientHeight : maxH) - padY;
+    zoom = 1;
+    setZoom(Math.max(FIT_MIN, Math.min(1, w / tree.offsetWidth, h / tree.offsetHeight)));
+    // The root sits top centre, so start there when the map is still wider than the panel.
+    treeScroll.scrollTo({ top: 0, left: (treeScroll.scrollWidth - treeScroll.clientWidth) / 2 });
+  }
+
+  $("zoom-in").addEventListener("click", () => setZoom(zoom * ZOOM_STEP));
+  $("zoom-out").addEventListener("click", () => setZoom(zoom / ZOOM_STEP));
+  zoomLevel.addEventListener("click", () => setZoom(1));
+  $("zoom-fit").addEventListener("click", fitZoom);
+
+  // Ctrl/Cmd + wheel (and trackpad pinch, which browsers report the same way) zooms at the pointer.
+  treeScroll.addEventListener("wheel", e => {
+    if (!e.ctrlKey && !e.metaKey) return;
+    e.preventDefault();
+    setZoom(zoom * Math.exp(-e.deltaY * 0.0015), { x: e.clientX, y: e.clientY });
+  }, { passive: false });
+
+  // Drag with a mouse or pen to pan. Touch already pans natively. A press that moves
+  // less than a few pixels is still a click on the node under it.
+  let drag = null, dragged = false;
+  treeScroll.addEventListener("pointerdown", e => {
+    if (e.pointerType === "touch" || e.button !== 0) return;
+    drag = { id: e.pointerId, x: e.clientX, y: e.clientY, left: treeScroll.scrollLeft, top: treeScroll.scrollTop };
+    dragged = false;
+  });
+  treeScroll.addEventListener("pointermove", e => {
+    if (!drag || e.pointerId !== drag.id) return;
+    const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+    if (!dragged) {
+      if (Math.hypot(dx, dy) < 5) return;
+      dragged = true;
+      treeScroll.setPointerCapture(e.pointerId);
+      treeScroll.classList.add("is-panning");
+    }
+    treeScroll.scrollLeft = drag.left - dx;
+    treeScroll.scrollTop = drag.top - dy;
+  });
+  const endDrag = () => { drag = null; treeScroll.classList.remove("is-panning"); };
+  treeScroll.addEventListener("pointerup", endDrag);
+  treeScroll.addEventListener("pointercancel", endDrag);
+  treeScroll.addEventListener("click", e => {
+    if (!dragged) return;
+    e.stopPropagation();
+    dragged = false;
+  }, true);
+
+  /* ================= Full-screen tree ================= */
+  // The panel itself moves into the dialog, so selection, folds and listeners carry over.
+  const treePanel = document.querySelector(".tree-panel");
+  const treeModal = $("tree-modal");
+  const treePop = $("tree-pop");
+  const panelSlot = { parent: treePanel.parentElement, next: treePanel.nextElementSibling };
+  const POP_ICON = {
+    open: '<path d="M9.5 2.5h4v4M6.5 13.5h-4v-4M13.5 2.5L9 7M2.5 13.5L7 9"/>',
+    close: '<path d="M4 4l8 8M12 4l-8 8"/>'
+  };
+  let docked = null;   // zoom and scroll to restore when the panel returns
+
+  function setPop(open) {
+    treePop.querySelector("svg").innerHTML = open ? POP_ICON.close : POP_ICON.open;
+    treePop.querySelector("span").textContent = open ? "Close" : "Full screen";
+    treePop.setAttribute("aria-label", open ? "Close full screen and return the tree to the page" : "Open the tree full screen");
+  }
+
+  treePop.addEventListener("click", () => {
+    if (treeModal.open) { treeModal.close(); return; }
+    docked = { zoom, left: treeScroll.scrollLeft, top: treeScroll.scrollTop };
+    treeModal.appendChild(treePanel);
+    treeModal.showModal();
+    setPop(true);
+    fitZoom();
+    treePop.focus();
+  });
+
+  // Fires for the Close button, Esc and the browser's back gesture alike.
+  treeModal.addEventListener("close", () => {
+    panelSlot.parent.insertBefore(treePanel, panelSlot.next);
+    setPop(false);
+    if (docked) {
+      setZoom(docked.zoom);
+      treeScroll.scrollLeft = docked.left;
+      treeScroll.scrollTop = docked.top;
+      docked = null;
+    }
+    treePop.focus();
   });
 
   /* ================= Specificity ================= */
@@ -757,17 +884,19 @@
     tree.appendChild(render(doc));
     majors.forEach(li => {
       const n = li.domNode;
-      const closed = closedKeys ? closedKeys.has(stateKey(n)) : (n.nodeName === "HEAD" || isTopLevel(n));
+      const closed = closedKeys ? closedKeys.has(stateKey(n)) : !OPEN_BY_DEFAULT.includes(n.nodeName);
       if (closed) setOpen(li, false);
     });
     const first = tree.querySelector(".pick");
     if (first) first.tabIndex = 0;
 
+    // Selection and matches are marked without unfolding branches; folded hubs show what they hide.
     const target = (selKey && findByKey(selKey)) || doc.querySelector(".note p") || doc.body || doc;
-    select(target, { reveal: !preserve });
-    if (selInput.value.trim()) runSelector({ quiet: preserve });
+    select(target, { reveal: false });
+    if (selInput.value.trim()) runSelector({ quiet: true });
     compare();
     if (scroll) { treeScroll.scrollTop = scroll.top; treeScroll.scrollLeft = scroll.left; }
+    else fitZoom();
   }
 
   const elementCount = () => doc.querySelectorAll("*").length;

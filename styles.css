@@ -311,10 +311,21 @@ input[aria-invalid="true"] { border-color: var(--danger); }
   max-height: 660px;
   padding: 12px;
   border-radius: 10px;
-  background: var(--sunken);
+  background-color: var(--sunken);
+  background-image: radial-gradient(color-mix(in oklab, var(--muted) 28%, transparent) 1px, transparent 1.5px);
+  background-size: 18px 18px;
+  background-attachment: local;
   border: 1px solid var(--line);
   overscroll-behavior: contain;
+  cursor: grab;
 }
+.tree-scroll.is-panning, .tree-scroll.is-panning .pick, .tree-scroll.is-panning .chev { cursor: grabbing; user-select: none; }
+
+.panel-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.zoom { display: inline-flex; align-items: center; gap: 4px; }
+.zoom .btn { padding: 5px 9px; }
+.zoom__level { min-width: 58px; font-variant-numeric: tabular-nums; }
+.zoom .btn:disabled { opacity: 0.45; cursor: default; border-color: var(--line); }
 @media (max-width: 1000px) { .tree-scroll { max-height: 62vh; } }
 
 /* Branch colours */
@@ -329,41 +340,80 @@ input[aria-invalid="true"] { border-color: var(--danger); }
 .b-aside { --bc: var(--c-aside); }
 .b-footer { --bc: var(--c-footer); }
 
+/* Tree as a top-down chart: each node's box sits above its children, centred on them,
+   joined by curved connectors that end in an arrowhead. Hubs are pills, leaves are cards. */
 .tree, .tree ul { list-style: none; margin: 0; padding: 0; }
-.tree { width: max-content; min-width: 100%; }
-.node { position: relative; }
+.tree { width: max-content; margin-inline: auto; padding: 6px 4px; }
+.node { position: relative; display: flex; flex-direction: column; align-items: center; }
+.node > .row { flex: none; }
 .tree ul.inner {
-  display: grid;
-  gap: 4px;
-  margin-left: 13px;
-  padding: 4px 0 2px 16px;
-  border-left: 1.5px solid color-mix(in oklab, var(--bc) 45%, transparent);
+  --lc: color-mix(in oklab, var(--bc) 55%, var(--sunken));
+  --lw: 1.5px;
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  padding: 18px 0 6px;
 }
+.kids > ul.inner { --lw: 2.25px; }
+/* Stub from the parent box down to the bus */
+.tree ul.inner::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: calc(50% - var(--lw) / 2);
+  height: 18px;
+  border-left: var(--lw) solid var(--lc);
+}
+/* Bus and drop: ::before is the left half, ::after the right half */
+.inner > .node { padding: 24px 12px 0; }
+.inner > .node::before,
+.inner > .node::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  height: 17px;
+  border: 0 solid var(--lc);
+  pointer-events: none;
+}
+.inner > .node::before { left: 0; width: calc(50% + var(--lw) / 2); border-top-width: var(--lw); border-right-width: var(--lw); }
+.inner > .node::after { left: calc(50% - var(--lw) / 2); right: 0; border-top-width: var(--lw); }
+.inner > .node:first-child::before { border-width: 0; }
+.inner > .node:first-child::after { border-left-width: var(--lw); border-top-left-radius: 12px; }
+.inner > .node:last-child::before { border-top-right-radius: 12px; }
+.inner > .node:last-child::after { border-width: 0; }
+.inner > .node:only-child::before { border-top-width: 0; border-right-width: var(--lw); border-radius: 0; }
+.inner > .node:only-child::after { border-width: 0; }
+/* Arrowhead into each child box */
 .inner > .node > .row::before {
   content: "";
   position: absolute;
-  left: -16px;
-  top: 14px;
-  width: 13px;
-  border-top: 1.5px solid color-mix(in oklab, var(--bc) 45%, transparent);
+  top: -8px;
+  left: 50%;
+  translate: -50% 0;
+  border-inline: 4.5px solid transparent;
+  border-top: 7px solid var(--lc);
 }
+.inner > .node:is(.on-path, .selected) > .row::before { border-top-color: var(--bc); }
+
 .row {
   position: relative;
   display: inline-flex;
   align-items: stretch;
-  border-radius: 7px;
+  border-radius: 8px;
   background: color-mix(in oklab, var(--bc) 9%, var(--surface));
-  border: 1px solid color-mix(in oklab, var(--bc) 30%, transparent);
+  border: 1px solid color-mix(in oklab, var(--bc) 35%, transparent);
+  box-shadow: 0 1px 2px color-mix(in oklab, var(--ink) 8%, transparent);
   transition: box-shadow 160ms var(--ease), background 160ms var(--ease);
 }
 .pick {
   display: inline-flex;
-  align-items: baseline;
-  gap: 10px;
-  padding: 3px 10px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  padding: 4px 11px;
   background: none;
   border: 0;
-  border-radius: 6px;
+  border-radius: 7px;
   cursor: pointer;
   text-align: left;
   white-space: nowrap;
@@ -374,44 +424,63 @@ input[aria-invalid="true"] { border-color: var(--danger); }
 .lbl .id { color: var(--bc); font-weight: 600; }
 .lbl .cl { opacity: 0.78; }
 .lbl .at { color: var(--muted); }
-.txt { font-size: 12.5px; color: var(--muted); }
+.txt { font-size: 12px; color: var(--muted); line-height: 1.35; }
 .count { font-size: 12px; color: var(--muted); display: none; }
 .collapsed > .row .count { display: inline; }
 
+/* Hubs: pill-shaped, with the fold toggle on the side the branches grow from */
 .major > .row {
+  border-radius: 999px;
   border-width: 1.5px;
-  border-color: color-mix(in oklab, var(--bc) 60%, transparent);
-  background: color-mix(in oklab, var(--bc) 15%, var(--surface));
+  border-color: color-mix(in oklab, var(--bc) 65%, transparent);
+  background: color-mix(in oklab, var(--bc) 17%, var(--surface));
 }
-.major > .row .pick { padding-block: 5px; }
+.major > .row .pick { gap: 0; padding: 6px 8px 6px 16px; border-radius: 999px 0 0 999px; }
+.major > .row .count { font-size: 11px; line-height: 1.3; }
 .major > .row .lbl { font-size: 13.5px; }
 .major > .row .lbl .tg { font-weight: 700; }
+.collapsed > .row { box-shadow: 0 4px 0 -1.5px color-mix(in oklab, var(--bc) 30%, var(--surface)), 0 4px 0 0 color-mix(in oklab, var(--bc) 45%, transparent); }
+/* The document root is the centre of the map */
+.tree > .node > .row { background: var(--bc); border-color: var(--bc); }
+.tree > .node > .row .pick { color: var(--surface); padding-block: 9px; }
+.tree > .node > .row .count { color: inherit; opacity: 0.8; }
+.tree > .node > .row .chev span { background: var(--surface); color: var(--bc); }
+/* Folded hubs say when the selection or a selector match is hidden inside them */
+.collapsed:has(.node.selected) > .row { border-style: dashed; border-color: var(--bc); }
+.collapsed:has(.node.match) > .row .count::after { content: " · match inside"; color: var(--ink); font-weight: 700; }
 .chev {
+  order: 2;
   flex: none;
-  width: 30px;
+  width: 32px;
   display: grid;
   place-items: center;
-  padding: 0;
+  padding: 0 4px 0 0;
   background: none;
   border: 0;
-  border-right: 1px solid color-mix(in oklab, var(--bc) 30%, transparent);
-  border-radius: 6px 0 0 6px;
+  border-radius: 0 999px 999px 0;
   cursor: pointer;
 }
 .chev span {
-  width: 18px; height: 18px;
-  border-radius: 5px;
+  width: 20px; height: 20px;
+  border-radius: 50%;
   background: var(--bc);
   color: var(--surface);
   display: grid; place-items: center;
+  transform: rotate(180deg);
   transition: transform var(--dur) var(--ease);
 }
 .chev svg { width: 12px; height: 12px; }
-.collapsed > .row .chev span { transform: rotate(-90deg); }
+.collapsed > .row .chev span { transform: none; }
 
-.kids { display: grid; grid-template-rows: 1fr; transition: grid-template-rows var(--dur) var(--ease), opacity var(--dur) var(--ease); }
-.kids > ul { overflow: hidden; min-height: 0; }
-.kids.closed { grid-template-rows: 0fr; opacity: 0; }
+/* Folding animates both directions, since branches spread sideways as they grow down */
+.kids {
+  display: grid;
+  grid-template-rows: 1fr;
+  grid-template-columns: 1fr;
+  transition: grid-template-rows var(--dur) var(--ease), grid-template-columns var(--dur) var(--ease), opacity var(--dur) var(--ease);
+}
+.kids > ul { overflow: hidden; min-height: 0; min-width: 0; }
+.kids.closed { grid-template-rows: 0fr; grid-template-columns: 0fr; opacity: 0; }
 
 .node.on-path > .row { border-color: var(--bc); }
 .node.selected > .row {
@@ -428,6 +497,28 @@ input[aria-invalid="true"] { border-color: var(--danger); }
 }
 .node.match > .row { box-shadow: 0 0 0 1.5px var(--ink); }
 .node.match.selected > .row { box-shadow: 0 0 0 2px var(--bc), 0 0 0 4px var(--ink); }
+
+/* Full-screen tree: the panel is moved into this dialog and fills the viewport */
+.tree-modal {
+  width: 100vw;
+  height: 100dvh;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: var(--surface);
+  color: var(--ink);
+}
+.tree-modal::backdrop { background: color-mix(in oklab, var(--ink) 40%, transparent); }
+html:has(.tree-modal[open]) { overflow: hidden; }
+.tree-modal .tree-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: max(16px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) max(16px, env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
+}
+.tree-modal .tree-scroll { flex: 1; min-height: 0; max-height: none; }
 
 /* Inspector */
 .inspector {
